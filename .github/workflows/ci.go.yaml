@@ -1,0 +1,25 @@
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: go.mod
+        cache: true
+        cache-dependency-path: go.sum
+    - name: Go fmt
+      id: fmt
+      run: |
+        go fmt ./...
+        git diff --exit-code
+    - name: Go test
+      run: go test -v ./...

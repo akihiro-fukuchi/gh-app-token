@@ -1,0 +1,6 @@
+.PHONY: test
+
+test:
+	go fmt ./...
+	go test -v ./...
+	go mod tidy
