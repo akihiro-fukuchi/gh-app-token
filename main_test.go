@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -35,6 +39,71 @@ anervelnYov4OhUKzF6v7DLMeqeMLroMh1B4EihDGKc9vxK8GjDCDLP4EsLTlr7j
 zm+MyekFOPgws5cTeLfCJmrVlX7YDN4wHmw19QMaYUzyqZZQLoA=
 -----END RSA PRIVATE KEY-----`
 var _now = time.Date(2014, time.December, 31, 12, 13, 24, 0, time.UTC)
+var _apiBaseURL = "https://example.com"
+var _token = "ghs_16C7e42F292c6912E7710c838347Ae178B4a"
+var _responseJson = fmt.Sprintf(`{
+    "token": "%s",
+    "expires_at": "2016-07-11T22:14:10Z"
+}`, _token)
+var _jwtToken = "dummy"
+
+type RoundTripFunc func(req *http.Request) *http.Response
+
+func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req), nil
+}
+func NewTestClient(fn RoundTripFunc) *http.Client {
+	return &http.Client{
+		Transport: RoundTripFunc(fn),
+	}
+}
+
+func TestGitHubHTTPClient_GetInstallationAccessTokenOk(t *testing.T) {
+	mocClient := NewTestClient(func(req *http.Request) *http.Response {
+		if req.URL.String() != fmt.Sprintf("%s/app/installations/%s/access_tokens", _apiBaseURL, _installationId) {
+			t.Fatalf("Error unexpected request URL: %s", req.URL.String())
+		}
+		if req.Header.Get("Authorization") != "Bearer "+_jwtToken {
+			t.Fatalf("Error unexpected Authorization header: %s", req.Header.Get("Authorization"))
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(_responseJson)),
+		}
+	})
+
+	sut := NewGitHubHTTPClient(mocClient, _apiBaseURL)
+
+	result := &appConfig{
+		installationId: _installationId,
+		jwtToken:       "dummy",
+	}
+	err := sut.GetInstallationAccessToken(result)
+
+	if err != nil {
+		t.Fatalf("Error result got: error: %+v, want: ok", err)
+	}
+
+	if result.installationAccessToken.Token != _token {
+		t.Fatalf("Error token got: %s, want: %s", result.installationAccessToken.Token, _token)
+	}
+}
+
+func TestGitHubHTTPClient_GetInstallationAccessTokenForbidden(t *testing.T) {
+	mocClient := NewTestClient(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: 403,
+		}
+	})
+
+	sut := NewGitHubHTTPClient(mocClient, _apiBaseURL)
+
+	err := sut.GetInstallationAccessToken(&appConfig{})
+
+	if err == nil {
+		t.Fatal("Error result got: ok, want: error")
+	}
+}
 
 func TestNewAppConfigOk(t *testing.T) {
 	_, err := NewAppConfig(_appId, _installationId, _privateKey, _now)

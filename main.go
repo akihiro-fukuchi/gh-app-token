@@ -2,13 +2,48 @@ package main
 
 import (
 	"crypto/rsa"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
+
+type GitHubHTTPClient struct {
+	client     *http.Client
+	apiBaseURL string
+}
+
+func NewGitHubHTTPClient(c *http.Client, apiBaseURL string) *GitHubHTTPClient {
+	return &GitHubHTTPClient{
+		client:     c,
+		apiBaseURL: apiBaseURL,
+	}
+}
+
+func (c *GitHubHTTPClient) GetInstallationAccessToken(appCfg *appConfig) error {
+	url := fmt.Sprintf("%s/app/installations/%s/access_tokens", c.apiBaseURL, appCfg.installationId)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", appCfg.jwtToken))
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("received non 2xx response status %q when fetching %v", resp.Status, req.URL)
+	}
+	return json.NewDecoder(resp.Body).Decode(&appCfg.installationAccessToken)
+}
 
 type installationAccessToken struct {
 	Token     string `json:"token"`
@@ -57,10 +92,21 @@ var (
 func main() {
 	flag.Parse()
 	if *appId == "" || *installationId == "" || *privateKey == "" {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		exitError(fmt.Errorf("missing flags"))
 	}
-	fmt.Print(apiBaseURL)
+	now := time.Now()
+	appCfg, err := NewAppConfig(*appId, *installationId, *privateKey, now)
+	if err != nil {
+		exitError(err)
+	}
+	client := NewGitHubHTTPClient(&http.Client{}, apiBaseURL)
+	if err = client.GetInstallationAccessToken(appCfg); err != nil {
+		exitError(err)
+	}
+
+	fmt.Print(appCfg.installationAccessToken.Token)
 }
 
 func exitError(err error) {
