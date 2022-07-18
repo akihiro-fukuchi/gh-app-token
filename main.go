@@ -17,9 +17,9 @@ type GitHubHTTPClient struct {
 	apiBaseURL string
 }
 
-func NewGitHubHTTPClient(c *http.Client, apiBaseURL string) *GitHubHTTPClient {
+func NewGitHubHTTPClient(client *http.Client, apiBaseURL string) *GitHubHTTPClient {
 	return &GitHubHTTPClient{
-		client:     c,
+		client:     client,
 		apiBaseURL: apiBaseURL,
 	}
 }
