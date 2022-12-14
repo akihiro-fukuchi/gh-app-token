@@ -18,7 +18,7 @@ jobs:
         cache: true
         cache-dependency-path: go.sum
     - name: Run goreleaser
-      uses: goreleaser/goreleaser-action@v3
+      uses: goreleaser/goreleaser-action@v4
       with:
         args: release --rm-dist
       env:
